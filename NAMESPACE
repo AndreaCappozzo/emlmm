@@ -2,4 +2,5 @@
 
 export(control_EM)
 export(ecm_lmm_lasso)
+export(em_lmm)
 export(em_lmm_lasso)

@@ -1,7 +1,7 @@
 
 # Standard linear mixed model fitted using an EM algorithm ----------------
 # It provides the same results of lme4::lmer()
-
+#' @export
 em_lmm <-
   function(X,
            y,
@@ -30,6 +30,7 @@ em_lmm <-
     tol <- control_EM_algorithm$tol
     err <- control_EM_algorithm$err
 
+    iter <- 0
     loglik <- loglik_prev <- -.Machine$integer.max / 2
     loglik_vec <- NULL
 
