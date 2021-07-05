@@ -8,7 +8,8 @@ em_lmm_lasso <-
            y,
            Z,
            group,
-           lambda = NULL) {
+           lambda = NULL,
+           control_EM_algorithm =control_EM()) {
 
     X <-  data.matrix(X)
     X_no_intercept <- X[,-1,drop=FALSE] # needed for penalized regression
@@ -49,10 +50,10 @@ em_lmm_lasso <-
     raneff_i <- vector(mode = "numeric", length = N)
 
     # EM parameters
-    itermax <- 1000
-    tol <- 1e-8
+    itermax <- control_EM_algorithm$itermax
+    tol <- control_EM_algorithm$tol
+    err <- control_EM_algorithm$err
 
-    iter <- 0
     # I need to monitor the penalized likelihood
     loglik_pen <- loglik_pen_prev <- -.Machine$integer.max / 2
     loglik_pen_vec <- NULL
@@ -146,7 +147,8 @@ ecm_lmm_lasso <-
            y,
            Z,
            group,
-           lambda = NULL) {
+           lambda = NULL,
+           control_EM_algorithm =control_EM()) {
 
     X <-  data.matrix(X)
     X_no_intercept <- X[,-1,drop=FALSE] # needed for penalized regression
@@ -187,10 +189,10 @@ ecm_lmm_lasso <-
     raneff_i <- vector(mode = "numeric", length = N)
 
     # EM parameters
-    itermax <- 1000
-    tol <- 1e-8
+    itermax <- control_EM_algorithm$itermax
+    tol <- control_EM_algorithm$tol
+    err <- control_EM_algorithm$err
 
-    iter <- 0
     # I need to monitor the penalized likelihood
     loglik_pen <- loglik_pen_prev <- -.Machine$integer.max / 2
     loglik_pen_vec <- NULL

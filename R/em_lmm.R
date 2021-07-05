@@ -6,7 +6,9 @@ em_lmm <-
   function(X,
            y,
            Z,
-           group) {
+           group,
+           control_EM_algorithm = control_EM()) {
+
     X <-  data.matrix(X)
     y <-  data.matrix(y)
     Z <-  data.matrix(Z)
@@ -24,10 +26,10 @@ em_lmm <-
     raneff_i <- vector(mode = "numeric", length = N)
 
     # EM parameters
-    itermax <- 1000
-    tol <- 1e-8
+    itermax <- control_EM_algorithm$itermax
+    tol <- control_EM_algorithm$tol
+    err <- control_EM_algorithm$err
 
-    iter <- 0
     loglik <- loglik_prev <- -.Machine$integer.max / 2
     loglik_vec <- NULL
 
