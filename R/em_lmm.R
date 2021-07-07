@@ -18,7 +18,7 @@ em_lmm <-
     J <- length(unique(group))
 
     # Set initial values
-    beta <- (lm.fit(y = y, x = X))$coefficients
+    beta <- (stats::lm.fit(y = y, x = X))$coefficients
     sigma2 <- 1
     Omega <- diag(q)
 
@@ -59,7 +59,7 @@ em_lmm <-
       # M step ------------------------------------------------------------------
 
       beta <-
-        (lm.fit(y = y - raneff_i, x = X))$coefficients # insert penalty term here
+        (stats::lm.fit(y = y - raneff_i, x = X))$coefficients # insert penalty term here
       Omega <- as.matrix(est_second_moment / J)
       sigma2 <- mean(y * (y - X %*% beta - raneff_i))
 

@@ -21,7 +21,7 @@ em_lmm_lasso <-
     N <- nrow(X)
     J <- length(unique(group)) # number of groups
 
-    if (is.null(lambda)) {
+    if (is.null(lambda)) { #FIXME
       # if lambda is not provided, an initial guess is obtained by performing 10-CV on the fixed effect model only
       fit_cv_glmnet <-
         glmnet::cv.glmnet(
@@ -41,7 +41,7 @@ em_lmm_lasso <-
 
     # Set initial values
     if (lambda == 0) {
-      beta <- (lm.fit(y = y, x = X))$coefficients
+      beta <- (stats::lm.fit(y = y, x = X))$coefficients
     } else{
       beta <-
         c(mean(y), rep(0, (p - 1))) # I set all betas equal to 0 but the intercept
@@ -93,7 +93,7 @@ em_lmm_lasso <-
           family = "gaussian",
           standardize = FALSE,
           alpha = 1,
-          lambda = lambda
+          lambda = (lambda*sigma2)/N
         )
       beta <-
         as.vector(stats::coef(penalized_regression)) # I include the intercept in the set of estimated parameters
@@ -121,7 +121,7 @@ em_lmm_lasso <-
       }
 
       loglik_pen <-
-        loglik - lambda * sum(abs(beta)) # objective function
+        loglik - lambda * sum(abs(beta[-1])) # objective function
 
       # check convergence
       err <-
@@ -160,14 +160,14 @@ ecm_lmm_lasso <-
     X <-  data.matrix(X)
     X_no_intercept <-
       X[, -1, drop = FALSE] # needed for penalized regression
-    y <-  data.matrix(y)
+    # y <-  data.matrix(y)
     Z <-  data.matrix(Z)
     q <- ncol(Z) # # ran eff
     p <- ncol(X) # # fix eff
     N <- nrow(X)
     J <- length(unique(group)) # number of groups
 
-    if (is.null(lambda)) {
+    if (is.null(lambda)) { #FIXME
       # if lambda is not provided, an initial guess is obtained by performing 10-CV on the fixed effect model only
       fit_cv_glmnet <-
         glmnet::cv.glmnet(
@@ -185,16 +185,25 @@ ecm_lmm_lasso <-
       lambda_range = NULL
     }
 
-    # Set initial values
-    if (lambda == 0) {
-      beta <- (lm.fit(y = y, x = X))$coefficients
-    } else{
-      beta <-
-        c(mean(y), rep(0, (p - 1))) # I set all betas equal to 0 but the intercept FIXME
-    }
-
+    # Set initial values as per Rohart 2014 FIXME
     sigma2 <- 1
     Omega <- diag(q)
+
+    if (lambda == 0) {
+      beta <- (stats::lm.fit(y = y, x = X))$coefficients
+    } else{
+      penalized_regression_0 <-
+        glmnet::glmnet(
+          x = X_no_intercept,
+          y = y ,
+          family = "gaussian",
+          # standardize = FALSE,
+          alpha = 1,
+          lambda = (lambda*sigma2)/N  # FIXME NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
+        )
+      beta <-
+        as.vector(stats::coef(penalized_regression_0))
+    }
 
     mu_raneff <- matrix(nrow = q, ncol = J)
     raneff_i <- vector(mode = "numeric", length = N)
@@ -215,7 +224,6 @@ ecm_lmm_lasso <-
     while (crit) {
 
       res_fixed <- y - X %*% beta
-      est_second_moment <- 0
 
       # First E step ------------------------------------------------------------------
       # Compute the BLURP
@@ -240,16 +248,21 @@ ecm_lmm_lasso <-
           x = X_no_intercept,
           y = y - raneff_i,
           family = "gaussian",
-          standardize = FALSE,
+          # standardize = FALSE,
           alpha = 1,
-          lambda = lambda
+          lambda = (lambda*sigma2)/N # FIXME NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
         )
 
       beta <-
         as.vector(stats::coef(penalized_regression)) # I include the intercept in the set of estimated parameters
 
+      res_fixed <- y - X %*% beta
+      est_second_moment <- 0
+
       # Second E step ------------------------------------------------------------------
       # Compute the BLURP and the estimated second moments
+      est_second_moment_error <- 0
+
       for (j in 1:J) {
         # iterate over different groups
         rows_j <- which(group_indicator == j)
@@ -261,13 +274,18 @@ ecm_lmm_lasso <-
         raneff_i[rows_j] <- Z_j %*% mu_j
         est_second_moment <-
           est_second_moment + Gamma_j + mu_j %*% t(mu_j)
+        est_second_moment_error <- est_second_moment_error + sum(diag(Z_j%*%Gamma_j%*%t(Z_j))) # second piece A.1 Rohart 2014
       }
 
       # Second M step -----------------------------------------------------------
       # Compute the variance parameters
 
       Omega <- as.matrix(est_second_moment / J)
-      sigma2 <- mean(y * (y - X %*% beta - raneff_i))
+
+      # sigma2 <- mean(y*(y - c(X %*% beta) - raneff_i))
+      # y_hat <- X %*% beta + raneff_i
+
+      sigma2 <- c(var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
 
       #### log lik evaluation-------------------------------------------------
 
@@ -290,7 +308,7 @@ ecm_lmm_lasso <-
       }
 
       loglik_pen <-
-        loglik - lambda * sum(abs(beta)) # objective function
+        loglik - lambda * sum(abs(beta[-1])) # objective function (remark: the intercept is not penalized)
 
       # check convergence
       err <-
