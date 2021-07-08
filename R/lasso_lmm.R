@@ -133,7 +133,7 @@ em_lmm_lasso <-
       }
 
       loglik_pen <-
-        loglik - lambda * sum(abs(beta[-1])) # objective function
+        loglik - lambda * sum(abs(beta[-1])) # objective function FIXME once penalty_factor glm is computed
 
       # check convergence
       err <-
@@ -320,7 +320,7 @@ ecm_lmm_lasso <-
       }
 
       loglik_pen <-
-        loglik - lambda * sum(abs(beta[-1])) # objective function (remark: the intercept is not penalized)
+        loglik - lambda * sum(abs(beta[-1])) # objective function (remark: the intercept is not penalized) FIXME once penalty_factor glmnet is computed needs to be used here
 
       # check convergence
       err <-
