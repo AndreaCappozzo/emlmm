@@ -2,7 +2,7 @@
 
 # LMM model with lasso penalty on the fixed effects ----------------------
 
-# Standard EM algorithm for LMM with lasso penalty
+# Standard EM algorithm for LMM with lasso penalty (no multicycle)
 #' @export
 em_lmm_lasso <-
   function(X ,
@@ -14,7 +14,7 @@ em_lmm_lasso <-
     X <-  data.matrix(X)
     X_no_intercept <-
       X[, -1, drop = FALSE] # needed for penalized regression
-    y <-  data.matrix(y)
+    # y <-  data.matrix(y)
     Z <-  data.matrix(Z)
     q <- ncol(Z) # # ran eff
     p <- ncol(X) # # fix eff
@@ -33,22 +33,31 @@ em_lmm_lasso <-
           standardize = FALSE
         )
       lambda_range <-
-        range(fit_cv_glmnet$lambda) # this should be used to have a guess about the range in which lambda may vary for the given dataset
-      lambda <- fit_cv_glmnet$lambda.min
+        range(fit_cv_glmnet$lambda)*N # this should be used to have a guess about the range in which lambda may vary for the given dataset
+      lambda <- fit_cv_glmnet$lambda.min*N
     } else{
       lambda_range = NULL
     }
 
     # Set initial values
+    sigma2 <- 1
+    Omega <- diag(q)
+
     if (lambda == 0) {
       beta <- (stats::lm.fit(y = y, x = X))$coefficients
     } else{
+      penalized_regression_0 <-
+        glmnet::glmnet(
+          x = X_no_intercept,
+          y = y ,
+          family = "gaussian",
+          # standardize = FALSE,
+          alpha = 1,
+          lambda = (lambda*sigma2)/N  # NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
+        )
       beta <-
-        c(mean(y), rep(0, (p - 1))) # I set all betas equal to 0 but the intercept
+        as.vector(stats::coef(penalized_regression_0))
     }
-
-    sigma2 <- 1
-    Omega <- diag(q)
 
     mu_raneff <- matrix(nrow = q, ncol = J)
     raneff_i <- vector(mode = "numeric", length = N)
@@ -67,9 +76,11 @@ em_lmm_lasso <-
 
     while (crit) {
       res_fixed <- y - X %*% beta
-      est_second_moment <- 0
+
 
       # E step ------------------------------------------------------------------
+      est_second_moment_error <- 0
+      est_second_moment <- 0
 
       for (j in 1:J) {
         # iterate over different groups
@@ -82,6 +93,7 @@ em_lmm_lasso <-
         raneff_i[rows_j] <- Z_j %*% mu_j
         est_second_moment <-
           est_second_moment + Gamma_j + mu_j %*% t(mu_j)
+        est_second_moment_error <- est_second_moment_error + sum(diag(Z_j%*%Gamma_j%*%t(Z_j))) # second piece A.1 Rohart 2014
       }
 
       # M step ------------------------------------------------------------------
@@ -98,7 +110,7 @@ em_lmm_lasso <-
       beta <-
         as.vector(stats::coef(penalized_regression)) # I include the intercept in the set of estimated parameters
       Omega <- as.matrix(est_second_moment / J)
-      sigma2 <- mean(y * (y - X %*% beta - raneff_i))
+      sigma2 <- c(var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
 
       #### log lik evaluation-------------------------------------------------
 
@@ -147,7 +159,7 @@ em_lmm_lasso <-
     )
   }
 
-# ECM algorithm for LMM with lasso penalty as described in Rohart 2014 (http://dx.doi.org/10.1016/j.csda.2014.06.022)
+# multicycle ECM algorithm for LMM with lasso penalty as described in Rohart 2014 (http://dx.doi.org/10.1016/j.csda.2014.06.022)
 #' @export
 ecm_lmm_lasso <-
   function(X ,
@@ -167,7 +179,7 @@ ecm_lmm_lasso <-
     N <- nrow(X)
     J <- length(unique(group)) # number of groups
 
-    if (is.null(lambda)) { #FIXME
+    if (is.null(lambda)) {
       # if lambda is not provided, an initial guess is obtained by performing 10-CV on the fixed effect model only
       fit_cv_glmnet <-
         glmnet::cv.glmnet(
@@ -179,13 +191,13 @@ ecm_lmm_lasso <-
           standardize = FALSE
         )
       lambda_range <-
-        range(fit_cv_glmnet$lambda) # this should be used to have a guess about the range in which lambda may vary for the given dataset
-      lambda <- fit_cv_glmnet$lambda.min
+        range(fit_cv_glmnet$lambda)*N # this should be used to have a guess about the range in which lambda may vary for the given dataset
+      lambda <- fit_cv_glmnet$lambda.min*N
     } else{
       lambda_range = NULL
     }
 
-    # Set initial values as per Rohart 2014 FIXME
+    # Set initial values
     sigma2 <- 1
     Omega <- diag(q)
 
@@ -199,7 +211,7 @@ ecm_lmm_lasso <-
           family = "gaussian",
           # standardize = FALSE,
           alpha = 1,
-          lambda = (lambda*sigma2)/N  # FIXME NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
+          lambda = (lambda*sigma2)/N  # NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
         )
       beta <-
         as.vector(stats::coef(penalized_regression_0))
@@ -250,7 +262,7 @@ ecm_lmm_lasso <-
           family = "gaussian",
           # standardize = FALSE,
           alpha = 1,
-          lambda = (lambda*sigma2)/N # FIXME NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
+          lambda = (lambda*sigma2)/N # NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
         )
 
       beta <-
