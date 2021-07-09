@@ -4,7 +4,7 @@
 
 # Standard EM algorithm for LMM with lasso penalty (no multicycle)
 #' @export
-em_lmm_lasso <-
+ecm_lmm_lasso <-
   function(X ,
            y,
            Z,
@@ -79,22 +79,35 @@ em_lmm_lasso <-
 
 
       # E step ------------------------------------------------------------------
-      est_second_moment_error <- 0
-      est_second_moment <- 0
 
-      for (j in 1:J) {
-        # iterate over different groups
-        rows_j <- which(group_indicator == j)
-        Z_j <- Z[rows_j, , drop = FALSE]
-        res_fixed_j <- res_fixed[rows_j, drop = FALSE]
-        Gamma_j <- solve(t(Z_j) %*% Z_j / sigma2 + solve(Omega))
-        mu_j <- (Gamma_j %*% t(Z_j) %*% res_fixed_j) / sigma2
-        mu_raneff[, j] <- mu_j
-        raneff_i[rows_j] <- Z_j %*% mu_j
-        est_second_moment <-
-          est_second_moment + Gamma_j + mu_j %*% t(mu_j)
-        est_second_moment_error <- est_second_moment_error + sum(diag(Z_j%*%Gamma_j%*%t(Z_j))) # second piece A.1 Rohart 2014
-      }
+      e_step_lmm <- estep_lmm_cpp(
+        res_fixed = res_fixed,
+        Z = Z,
+        group_indicator = group_indicator,
+        sigma2 = sigma2,inv_Omega = solve(Omega),
+        J = J
+      )
+
+      raneff_i <- e_step_lmm$raneff_i
+      est_second_moment <- e_step_lmm$est_second_moment
+      est_second_moment_error <- e_step_lmm$est_second_moment_error
+
+      # Original R code
+      # est_second_moment_error <- 0
+      # est_second_moment <- 0
+      # for (j in 1:J) {
+      #   # iterate over different groups
+      #   rows_j <- which(group_indicator == j)
+      #   Z_j <- Z[rows_j, , drop = FALSE]
+      #   res_fixed_j <- res_fixed[rows_j, drop = FALSE]
+      #   Gamma_j <- solve(t(Z_j) %*% Z_j / sigma2 + solve(Omega))
+      #   mu_j <- (Gamma_j %*% t(Z_j) %*% res_fixed_j) / sigma2
+      #   mu_raneff[, j] <- mu_j
+      #   raneff_i[rows_j] <- Z_j %*% mu_j
+      #   est_second_moment <-
+      #     est_second_moment + Gamma_j + mu_j %*% t(mu_j)
+      #   est_second_moment_error <- est_second_moment_error + sum(diag(Z_j%*%Gamma_j%*%t(Z_j))) # second piece A.1 Rohart 2014
+      # }
 
       # M step ------------------------------------------------------------------
 
@@ -107,30 +120,43 @@ em_lmm_lasso <-
           alpha = 1,
           lambda = (lambda*sigma2)/N
         )
+
       beta <-
         as.vector(stats::coef(penalized_regression)) # I include the intercept in the set of estimated parameters
       Omega <- as.matrix(est_second_moment / J)
-      sigma2 <- c(var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
+      sigma2 <- c(stats::var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
 
       #### log lik evaluation-------------------------------------------------
 
-      loglik <- 0
+      loglik <- log_lik_lmm_cpp(
+        y = y,
+        Z = Z,
+        X = X,
+        group_indicator = group_indicator,
+        beta = beta,
+        Omega = Omega,
+        sigma2 = sigma2,
+        J = J
+      )
 
-      for (j in 1:J) {
-        rows_j <- which(group_indicator == j)
-        Z_j <- Z[rows_j, , drop = FALSE]
-        y_j <- y[rows_j, drop = FALSE]
-        X_j <- X[rows_j, , drop = FALSE]
-        G_j <-
-          Z_j %*% Omega %*% t(Z_j) + diag(sigma2, nrow = length(rows_j))
-        loglik <-
-          loglik + mvtnorm::dmvnorm(
-            x = y_j,
-            mean = c(X_j %*% beta),
-            sigma = G_j,
-            log = TRUE
-          )
-      }
+      # Original R code
+      # loglik <- 0
+      #
+      # for (j in 1:J) {
+      #   rows_j <- which(group_indicator == j)
+      #   Z_j <- Z[rows_j, , drop = FALSE]
+      #   y_j <- y[rows_j, drop = FALSE]
+      #   X_j <- X[rows_j, , drop = FALSE]
+      #   G_j <-
+      #     Z_j %*% Omega %*% t(Z_j) + diag(sigma2, nrow = length(rows_j))
+      #   loglik <-
+      #     loglik + mvtnorm::dmvnorm(
+      #       x = y_j,
+      #       mean = c(X_j %*% beta),
+      #       sigma = G_j,
+      #       log = TRUE
+      #     )
+      # }
 
       loglik_pen <-
         loglik - lambda * sum(abs(beta[-1])) # objective function FIXME once penalty_factor glm is computed
@@ -154,14 +180,15 @@ em_lmm_lasso <-
         loglik_pen = loglik_pen,
         loglik_pen_trace = loglik_pen_vec,
         lambda = lambda,
-        lambda_range = lambda_range
+        lambda_range = lambda_range,
+        iter=iter
       )
     )
   }
 
 # multicycle ECM algorithm for LMM with lasso penalty as described in Rohart 2014 (http://dx.doi.org/10.1016/j.csda.2014.06.022)
 #' @export
-ecm_lmm_lasso <-
+ecm_multcycle_lmm_lasso <-
   function(X ,
            y,
            Z,
@@ -239,18 +266,16 @@ ecm_lmm_lasso <-
 
       # First E step ------------------------------------------------------------------
       # Compute the BLURP
-      for (j in 1:J) {
-        # iterate over different groups
-        rows_j <- which(group_indicator == j)
-        Z_j <- Z[rows_j, , drop = FALSE]
-        res_fixed_j <- res_fixed[rows_j, drop = FALSE]
-        Gamma_j <- solve(t(Z_j) %*% Z_j / sigma2 + solve(Omega))
-        mu_j <- (Gamma_j %*% t(Z_j) %*% res_fixed_j) / sigma2
-        mu_raneff[, j] <- mu_j
-        raneff_i[rows_j] <- Z_j %*% mu_j
-        # est_second_moment <-
-        #   est_second_moment + Gamma_j + mu_j %*% t(mu_j)
-      }
+      e_step_lmm <- estep_lmm_cpp(
+        res_fixed = res_fixed,
+        Z = Z,
+        group_indicator = group_indicator,
+        sigma2 = sigma2,inv_Omega = solve(Omega),
+        J = J
+      )
+
+      raneff_i <- e_step_lmm$raneff_i
+
 
       # First M step ------------------------------------------------------------------
       # Compute the penalized betas
@@ -269,25 +294,21 @@ ecm_lmm_lasso <-
         as.vector(stats::coef(penalized_regression)) # I include the intercept in the set of estimated parameters
 
       res_fixed <- y - X %*% beta
-      est_second_moment <- 0
 
       # Second E step ------------------------------------------------------------------
       # Compute the BLURP and the estimated second moments
-      est_second_moment_error <- 0
 
-      for (j in 1:J) {
-        # iterate over different groups
-        rows_j <- which(group_indicator == j)
-        Z_j <- Z[rows_j, , drop = FALSE]
-        res_fixed_j <- res_fixed[rows_j, drop = FALSE]
-        Gamma_j <- solve(t(Z_j) %*% Z_j / sigma2 + solve(Omega))
-        mu_j <- (Gamma_j %*% t(Z_j) %*% res_fixed_j) / sigma2
-        mu_raneff[, j] <- mu_j
-        raneff_i[rows_j] <- Z_j %*% mu_j
-        est_second_moment <-
-          est_second_moment + Gamma_j + mu_j %*% t(mu_j)
-        est_second_moment_error <- est_second_moment_error + sum(diag(Z_j%*%Gamma_j%*%t(Z_j))) # second piece A.1 Rohart 2014
-      }
+      e_step_lmm <- estep_lmm_cpp(
+        res_fixed = res_fixed,
+        Z = Z,
+        group_indicator = group_indicator,
+        sigma2 = sigma2,inv_Omega = solve(Omega),
+        J = J
+      )
+
+      raneff_i <- e_step_lmm$raneff_i
+      est_second_moment <- e_step_lmm$est_second_moment
+      est_second_moment_error <- e_step_lmm$est_second_moment_error
 
       # Second M step -----------------------------------------------------------
       # Compute the variance parameters
@@ -297,27 +318,20 @@ ecm_lmm_lasso <-
       # sigma2 <- mean(y*(y - c(X %*% beta) - raneff_i))
       # y_hat <- X %*% beta + raneff_i
 
-      sigma2 <- c(var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
+      sigma2 <- c(stats::var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
 
       #### log lik evaluation-------------------------------------------------
 
-      loglik <- 0
-
-      for (j in 1:J) {
-        rows_j <- which(group_indicator == j)
-        Z_j <- Z[rows_j, , drop = FALSE]
-        y_j <- y[rows_j, drop = FALSE]
-        X_j <- X[rows_j, , drop = FALSE]
-        G_j <-
-          Z_j %*% Omega %*% t(Z_j) + diag(sigma2, nrow = length(rows_j))
-        loglik <-
-          loglik + mvtnorm::dmvnorm(
-            x = y_j,
-            mean = c(X_j %*% beta),
-            sigma = G_j,
-            log = TRUE
-          )
-      }
+      loglik <- log_lik_lmm_cpp(
+        y = y,
+        Z = Z,
+        X = X,
+        group_indicator = group_indicator,
+        beta = beta,
+        Omega = Omega,
+        sigma2 = sigma2,
+        J = J
+      )
 
       loglik_pen <-
         loglik - lambda * sum(abs(beta[-1])) # objective function (remark: the intercept is not penalized) FIXME once penalty_factor glmnet is computed needs to be used here

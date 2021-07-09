@@ -16,4 +16,8 @@ RoxygenNote: 7.1.1
 Imports: 
     glmnet,
     mvtnorm,
+    Rcpp,
     stats
+LinkingTo: 
+    RcppArmadillo,
+    Rcpp
