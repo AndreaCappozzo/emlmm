@@ -40,6 +40,7 @@ Rcpp::List estep_lmm_cpp(arma::vec res_fixed, arma::mat Z,
   arma::mat est_second_moment(q,q);
   double est_second_moment_error = 0.0;
   arma::vec raneff_i(N);
+  arma::mat mu_raneff(J,q);
 
   //  Fill containers
   raneff_i.zeros();
@@ -53,6 +54,7 @@ Rcpp::List estep_lmm_cpp(arma::vec res_fixed, arma::mat Z,
     arma::mat first_piece = (Z_j.t()*Z_j)/ sigma2 + inv_Omega;
     arma::mat Gamma_j = first_piece.i();
     arma::vec mu_j = (Gamma_j*Z_j.t()*res_fixed_j)/sigma2;
+    mu_raneff.row((j-1))=mu_j.t();
     raneff_i(rows_j)=Z_j * mu_j;
     est_second_moment += Gamma_j + mu_j * mu_j.t();
     // Rcout << est_second_moment;
@@ -61,6 +63,7 @@ Rcpp::List estep_lmm_cpp(arma::vec res_fixed, arma::mat Z,
 
   return Rcpp::List::create( Named("est_second_moment") = est_second_moment,
                              Named("est_second_moment_error") = est_second_moment_error,
+                             Named("mu_raneff") = mu_raneff,
                              Named("raneff_i") = raneff_i);
 }
 

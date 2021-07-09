@@ -59,9 +59,6 @@ ecm_lmm_lasso <-
         as.vector(stats::coef(penalized_regression_0))
     }
 
-    mu_raneff <- matrix(nrow = q, ncol = J)
-    raneff_i <- vector(mode = "numeric", length = N)
-
     # EM parameters
     itermax <- control_EM_algorithm$itermax
     tol <- control_EM_algorithm$tol
@@ -175,7 +172,7 @@ ecm_lmm_lasso <-
         beta = beta,
         Omega = Omega,
         sigma2 = sigma2,
-        mu_raneff = mu_raneff,
+        mu_raneff = e_step_lmm$mu_raneff,
         loglik = loglik,
         loglik_pen = loglik_pen,
         loglik_pen_trace = loglik_pen_vec,
@@ -243,9 +240,6 @@ ecm_multcycle_lmm_lasso <-
       beta <-
         as.vector(stats::coef(penalized_regression_0))
     }
-
-    mu_raneff <- matrix(nrow = q, ncol = J)
-    raneff_i <- vector(mode = "numeric", length = N)
 
     # EM parameters
     itermax <- control_EM_algorithm$itermax
@@ -350,7 +344,7 @@ ecm_multcycle_lmm_lasso <-
         beta = beta,
         Omega = Omega,
         sigma2 = sigma2,
-        mu_raneff = mu_raneff,
+        mu_raneff = e_step_lmm$mu_raneff,
         loglik = loglik,
         loglik_pen = loglik_pen,
         loglik_pen_trace = loglik_pen_vec,

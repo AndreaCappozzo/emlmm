@@ -2,7 +2,7 @@
 # Standard linear mixed model fitted using an EM algorithm ----------------
 # It provides the same results of lme4::lmer()
 #' @export
-em_lmm <-
+ecm_lmm <-
   function(X,
            y,
            Z,
@@ -22,9 +22,6 @@ em_lmm <-
     sigma2 <- 1
     Omega <- diag(q)
 
-    mu_raneff <- matrix(nrow = q, ncol = J)
-    raneff_i <- vector(mode = "numeric", length = N)
-
     # EM parameters
     itermax <- control_EM_algorithm$itermax
     tol <- control_EM_algorithm$tol
@@ -43,45 +40,36 @@ em_lmm <-
 
       # E step ------------------------------------------------------------------
 
-      for (j in 1:J) {
-        # iterate over different groups
-        rows_j <- which(group_indicator == j)
-        Z_j <- Z[rows_j, , drop = FALSE]
-        res_fixed_j <- res_fixed[rows_j, drop = FALSE]
-        Gamma_j <- solve(t(Z_j) %*% Z_j / sigma2 + solve(Omega))
-        mu_j <- (Gamma_j %*% t(Z_j) %*% res_fixed_j) / sigma2
-        mu_raneff[, j] <- mu_j
-        raneff_i[rows_j] <- Z_j %*% mu_j
-        est_second_moment <-
-          est_second_moment + Gamma_j + mu_j %*% t(mu_j)
-      }
+      e_step_lmm <- estep_lmm_cpp(
+        res_fixed = res_fixed,
+        Z = Z,
+        group_indicator = group_indicator,
+        sigma2 = sigma2,inv_Omega = solve(Omega),
+        J = J
+      )
+
+      raneff_i <- e_step_lmm$raneff_i
+      est_second_moment <- e_step_lmm$est_second_moment
 
       # M step ------------------------------------------------------------------
 
       beta <-
-        (stats::lm.fit(y = y - raneff_i, x = X))$coefficients # insert penalty term here
+        (stats::lm.fit(y = y - raneff_i, x = X))$coefficients
       Omega <- as.matrix(est_second_moment / J)
       sigma2 <- mean(y * (y - X %*% beta - raneff_i))
 
       #### log lik evaluation-------------------------------------------------
 
-      loglik <- 0
-
-      for (j in 1:J) {
-        rows_j <- which(group_indicator == j)
-        Z_j <- Z[rows_j, , drop = FALSE]
-        y_j <- y[rows_j, drop = FALSE]
-        X_j <- X[rows_j, , drop = FALSE]
-        G_j <-
-          Z_j %*% Omega %*% t(Z_j) + diag(sigma2, nrow = length(rows_j))
-        loglik <-
-          loglik + mvtnorm::dmvnorm(
-            x = y_j,
-            mean = c(X_j %*% beta),
-            sigma = G_j,
-            log = TRUE
-          )
-      }
+      loglik <- log_lik_lmm_cpp(
+        y = y,
+        Z = Z,
+        X = X,
+        group_indicator = group_indicator,
+        beta = beta,
+        Omega = Omega,
+        sigma2 = sigma2,
+        J = J
+      )
 
       # check convergence
       err <-
@@ -97,7 +85,7 @@ em_lmm <-
         beta = beta,
         Omega = Omega,
         sigma2 = sigma2,
-        mu_raneff = mu_raneff,
+        mu_raneff = e_step_lmm$mu_raneff,
         loglik = loglik,
         loglik_trace = loglik_vec
       )
