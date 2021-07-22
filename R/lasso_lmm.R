@@ -90,8 +90,10 @@ ecm_lmm_lasso <-
       est_second_moment_error <- e_step_lmm$est_second_moment_error
 
       # Original R code
+      # mu_raneff <- matrix(nrow = q, ncol = J)
       # est_second_moment_error <- 0
       # est_second_moment <- 0
+      # raneff_i <- numeric(N)
       # for (j in 1:J) {
       #   # iterate over different groups
       #   rows_j <- which(group_indicator == j)
