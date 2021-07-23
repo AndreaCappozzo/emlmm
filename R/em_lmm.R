@@ -243,59 +243,65 @@ ecm_mlmm <-
     while (crit) {
 
 
-      res_fixed_vec <- matrix((vec_Y - vec_XB),ncol = 1)
-
-      # E step ------------------------------------------------------------------
-
-      # e_step_lmm <- estep_mlmm_cpp( # FIXME
-      #   res_fixed = res_fixed,
-      #   Z = Z,
-      #   group_indicator = group_indicator,
-      #   sigma2 = sigma2,inv_Omega = solve(Omega),
-      #   J = J
-      # )
-
-      # raneff_i <- e_step_lmm$raneff_i
-      # est_second_moment <- e_step_lmm$est_second_moment
-
-      est_second_moment_error <- matrix(0,nrow = r, ncol = r)
-      est_second_moment <- matrix(0,nrow = q*r, ncol = q*r)
-      mu_raneff <- array(dim=c(q,r,J))
-      vec_raneff_i <- vector(mode = "numeric", length = length(vec_Y))
+      vec_res_fixed <- matrix((vec_Y - vec_XB),ncol = 1)
       PSI_inv <- solve(PSI)
       SIGMA_inv <- solve(SIGMA)
 
-      for (j in 1:J) {
-        # iterate over different groups
-        rows_j <- which(group_indicator == j)
-        vec_rows_j <- which(vec_group_indicator == j)
-        I_nj <- diag(length(rows_j))
+      # E step ------------------------------------------------------------------
 
-        Z_j <- Z[rows_j, , drop = FALSE]
+      e_step_lmm <- estep_mlmm_cpp(
+        vec_res_fixed = vec_res_fixed,
+        Z = Z,
+        group_indicator = group_indicator,
+        vec_group_indicator = vec_group_indicator,
+        inv_Psi = PSI_inv,
+        inv_Sigma = SIGMA_inv,
+        I_r=I_r,
+        r = r,
+        J = J
+      )
 
-        res_fixed_vec_j <- res_fixed_vec[vec_rows_j, , drop = FALSE]
+      vec_raneff_i <- e_step_lmm$vec_raneff_i
+      est_second_moment <- e_step_lmm$est_second_moment
 
-        common_component_j <-
-          (I_r %x% t(Z_j)) %*% (SIGMA_inv %x% I_nj)
-        Gamma_j <-
-          solve(common_component_j %*% (I_r %x% Z_j) + PSI_inv)
-        vec_DELTA_j <-
-          Gamma_j %*% common_component_j %*% res_fixed_vec_j
-        mu_raneff[, , j] <- matrix(vec_DELTA_j, nrow = q, ncol = r)
-        vec_raneff_i[vec_rows_j] <- (I_r %x% Z_j) %*% vec_DELTA_j
-        est_second_moment <-
-          est_second_moment + Gamma_j + vec_DELTA_j %*% t(vec_DELTA_j)
-        # VAR_vec_E_j <- (I_r%x%Z_j)%*%Gamma_j%*%(I_r%x%t(Z_j))
-
-        # for (s in 1:r) {
-        #   est_second_moment_error[s,s] <-
-        # }
-        # for (s in 1:r) {
-        #   for (t in 1:r) {
-        #     est_second_moment_error[s, t] <-
-        #       est_second_moment_error[s, t] + #sum(diag(Z_j %*% Gamma_j %*% t(Z_j))) # FIXME
-        #   }
-        }
+      # # Original R code
+      # # est_second_moment_error <- matrix(0,nrow = r, ncol = r)
+      # est_second_moment <- matrix(0,nrow = q*r, ncol = q*r)
+      # mu_raneff <- array(dim=c(q,r,J))
+      # vec_raneff_i <- vector(mode = "numeric", length = length(vec_Y))
+      #
+      #
+      # for (j in 1:J) {
+      #   # iterate over different groups
+      #   rows_j <- which(group_indicator == j)
+      #   vec_rows_j <- which(vec_group_indicator == j)
+      #   I_nj <- diag(length(rows_j))
+      #
+      #   Z_j <- Z[rows_j, , drop = FALSE]
+      #
+      #   vec_res_fixed_j <- vec_res_fixed[vec_rows_j, , drop = FALSE]
+      #
+      #   common_component_j <-
+      #     (I_r %x% t(Z_j)) %*% (SIGMA_inv %x% I_nj)
+      #   Gamma_j <-
+      #     solve(common_component_j %*% (I_r %x% Z_j) + PSI_inv)
+      #   vec_DELTA_j <-
+      #     Gamma_j %*% common_component_j %*% vec_res_fixed_j
+      #   mu_raneff[, , j] <- matrix(vec_DELTA_j, nrow = q, ncol = r)
+      #   vec_raneff_i[vec_rows_j] <- (I_r %x% Z_j) %*% vec_DELTA_j
+      #   est_second_moment <-
+      #     est_second_moment + Gamma_j + vec_DELTA_j %*% t(vec_DELTA_j) # FIXME check this part
+      #   # VAR_vec_E_j <- (I_r%x%Z_j)%*%Gamma_j%*%(I_r%x%t(Z_j))
+      #
+      #   # for (s in 1:r) {
+      #   #   est_second_moment_error[s,s] <-
+      #   # }
+      #   # for (s in 1:r) {
+      #   #   for (t in 1:r) {
+      #   #     est_second_moment_error[s, t] <-
+      #   #       est_second_moment_error[s, t] + #sum(diag(Z_j %*% Gamma_j %*% t(Z_j))) # FIXME
+      #   #   }
+      #   }
 
       raneff_i <- matrix(vec_raneff_i, nrow = N, ncol = r)
 
@@ -307,39 +313,43 @@ ecm_mlmm <-
       PSI <- as.matrix(est_second_moment / J)
 
       SIGMA <- stats::cov(Y - X %*% BETA - raneff_i)*(N-1)/N # FIXME potentially a piece is missing here
+      vec_XB <- c(X %*% BETA) # Nr x 1
 
       #### log lik evaluation-------------------------------------------------
 
-      # loglik <- log_lik_lmm_cpp( #FIXME
-      #   y = y,
-      #   Z = Z,
-      #   X = X,
-      #   group_indicator = group_indicator,
-      #   beta = beta,
-      #   Omega = Omega,
-      #   sigma2 = sigma2,
-      #   J = J
-      # )
-      loglik <- 0
-      vec_XB <- c(X %*% BETA) # Nr x 1
+      loglik <- log_lik_mlmm_cpp(
+        vec_Y=vec_Y,
+        vec_XB=vec_XB,
+        Z = Z,
+        group_indicator = group_indicator,
+        vec_group_indicator=vec_group_indicator,
+        PSI = PSI,
+        SIGMA=SIGMA,
+        I_r=I_r,
+        J = J
+      )
 
-      for (j in 1:J) {
-        rows_j <- which(group_indicator == j)
-        vec_rows_j <- which(vec_group_indicator == j)
-        I_nj <- diag(length(rows_j))
-        vec_XB_j <- vec_XB[vec_rows_j]
-        Z_j <- Z[rows_j, , drop = FALSE]
-        vec_Y_j <- vec_Y[vec_rows_j]
-        G_j <-
-          (I_r %x% Z_j)%*%PSI%*%(I_r %x% t(Z_j)) + SIGMA%x%I_nj
-        loglik <-
-          loglik + mvtnorm::dmvnorm(
-            x = vec_Y_j,
-            mean = vec_XB_j,
-            sigma = G_j,
-            log = TRUE
-          )
-      }
+      # Original R code
+      # loglik <- 0
+      #
+      #
+      # for (j in 1:J) {
+      #   rows_j <- which(group_indicator == j)
+      #   vec_rows_j <- which(vec_group_indicator == j)
+      #   I_nj <- diag(length(rows_j))
+      #   vec_XB_j <- vec_XB[vec_rows_j]
+      #   Z_j <- Z[rows_j, , drop = FALSE]
+      #   vec_Y_j <- vec_Y[vec_rows_j]
+      #   G_j <-
+      #     (I_r %x% Z_j)%*%PSI%*%(I_r %x% t(Z_j)) + SIGMA%x%I_nj
+      #   loglik <-
+      #     loglik + mvtnorm::dmvnorm(
+      #       x = vec_Y_j,
+      #       mean = vec_XB_j,
+      #       sigma = G_j,
+      #       log = TRUE
+      #     )
+      # }
 
       # check convergence
       err <-
@@ -350,12 +360,13 @@ ecm_mlmm <-
       crit <- (err > tol & iter < itermax)
     }
 
+    mu_raneff <- array(c(e_step_lmm$mat_mu_raneff),dim=c(q,r,J)) # FIXME check when q>1
+
     return(
       list(
         BETA = BETA,
         PSI = PSI,
         SIGMA = SIGMA,
-        # mu_raneff = e_step_lmm$mu_raneff, # FIXME
         mu_raneff = mu_raneff,
         loglik = loglik,
         loglik_trace = loglik_vec

@@ -6,6 +6,11 @@
 
 using namespace Rcpp;
 
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
 // estep_lmm_cpp
 Rcpp::List estep_lmm_cpp(arma::vec res_fixed, arma::mat Z, arma::vec group_indicator, arma::mat inv_Omega, double sigma2, int J);
 RcppExport SEXP _emlmm_estep_lmm_cpp(SEXP res_fixedSEXP, SEXP ZSEXP, SEXP group_indicatorSEXP, SEXP inv_OmegaSEXP, SEXP sigma2SEXP, SEXP JSEXP) {
@@ -40,10 +45,50 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// estep_mlmm_cpp
+Rcpp::List estep_mlmm_cpp(arma::vec vec_res_fixed, arma::mat Z, arma::vec group_indicator, arma::vec vec_group_indicator, arma::mat inv_Psi, arma::mat I_r, arma::mat inv_Sigma, int r, int J);
+RcppExport SEXP _emlmm_estep_mlmm_cpp(SEXP vec_res_fixedSEXP, SEXP ZSEXP, SEXP group_indicatorSEXP, SEXP vec_group_indicatorSEXP, SEXP inv_PsiSEXP, SEXP I_rSEXP, SEXP inv_SigmaSEXP, SEXP rSEXP, SEXP JSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec >::type vec_res_fixed(vec_res_fixedSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type group_indicator(group_indicatorSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type vec_group_indicator(vec_group_indicatorSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type inv_Psi(inv_PsiSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type I_r(I_rSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type inv_Sigma(inv_SigmaSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    Rcpp::traits::input_parameter< int >::type J(JSEXP);
+    rcpp_result_gen = Rcpp::wrap(estep_mlmm_cpp(vec_res_fixed, Z, group_indicator, vec_group_indicator, inv_Psi, I_r, inv_Sigma, r, J));
+    return rcpp_result_gen;
+END_RCPP
+}
+// log_lik_mlmm_cpp
+double log_lik_mlmm_cpp(arma::vec vec_Y, arma::mat Z, arma::vec vec_XB, arma::vec group_indicator, arma::vec vec_group_indicator, arma::mat PSI, arma::mat SIGMA, arma::mat I_r, int J);
+RcppExport SEXP _emlmm_log_lik_mlmm_cpp(SEXP vec_YSEXP, SEXP ZSEXP, SEXP vec_XBSEXP, SEXP group_indicatorSEXP, SEXP vec_group_indicatorSEXP, SEXP PSISEXP, SEXP SIGMASEXP, SEXP I_rSEXP, SEXP JSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec >::type vec_Y(vec_YSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type vec_XB(vec_XBSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type group_indicator(group_indicatorSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type vec_group_indicator(vec_group_indicatorSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type PSI(PSISEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type SIGMA(SIGMASEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type I_r(I_rSEXP);
+    Rcpp::traits::input_parameter< int >::type J(JSEXP);
+    rcpp_result_gen = Rcpp::wrap(log_lik_mlmm_cpp(vec_Y, Z, vec_XB, group_indicator, vec_group_indicator, PSI, SIGMA, I_r, J));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_emlmm_estep_lmm_cpp", (DL_FUNC) &_emlmm_estep_lmm_cpp, 6},
     {"_emlmm_log_lik_lmm_cpp", (DL_FUNC) &_emlmm_log_lik_lmm_cpp, 8},
+    {"_emlmm_estep_mlmm_cpp", (DL_FUNC) &_emlmm_estep_mlmm_cpp, 9},
+    {"_emlmm_log_lik_mlmm_cpp", (DL_FUNC) &_emlmm_log_lik_mlmm_cpp, 9},
     {NULL, NULL, 0}
 };
 

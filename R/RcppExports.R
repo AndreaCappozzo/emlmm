@@ -11,3 +11,13 @@ log_lik_lmm_cpp <- function(y, Z, X, group_indicator, beta, Omega, sigma2, J) {
     .Call(`_emlmm_log_lik_lmm_cpp`, y, Z, X, group_indicator, beta, Omega, sigma2, J)
 }
 
+#' @export
+estep_mlmm_cpp <- function(vec_res_fixed, Z, group_indicator, vec_group_indicator, inv_Psi, I_r, inv_Sigma, r, J) {
+    .Call(`_emlmm_estep_mlmm_cpp`, vec_res_fixed, Z, group_indicator, vec_group_indicator, inv_Psi, I_r, inv_Sigma, r, J)
+}
+
+#' @export
+log_lik_mlmm_cpp <- function(vec_Y, Z, vec_XB, group_indicator, vec_group_indicator, PSI, SIGMA, I_r, J) {
+    .Call(`_emlmm_log_lik_mlmm_cpp`, vec_Y, Z, vec_XB, group_indicator, vec_group_indicator, PSI, SIGMA, I_r, J)
+}
+

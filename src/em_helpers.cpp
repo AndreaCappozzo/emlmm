@@ -93,3 +93,80 @@ double log_lik_lmm_cpp(arma::vec y, arma::mat Z, arma::mat X,
 
   return log_lik_lmm;
 }
+
+
+// MULTIVARIATE RESPONSE
+
+// [[Rcpp::depends(RcppArmadillo)]]
+//' @export
+// [[Rcpp::export]]
+Rcpp::List estep_mlmm_cpp(arma::vec vec_res_fixed, arma::mat Z,
+                         arma::vec group_indicator,
+                         arma::vec vec_group_indicator,
+                         arma::mat inv_Psi,
+                         arma::mat I_r,
+                         arma::mat inv_Sigma, int r, int J)
+{
+  int N = Z.n_rows;
+  int q = Z.n_cols;
+
+  // Containers
+  arma::mat est_second_moment(q*r,q*r);
+  // double est_second_moment_error = 0.0;
+  arma::vec vec_raneff_i(N*r);
+  arma::mat mat_mu_raneff(q*r,J);
+
+  //  Fill containers
+  vec_raneff_i.zeros();
+  est_second_moment.zeros();
+
+  for ( int j = 1; j < (J+1); j++ ) {
+    arma::uvec rows_j = find(group_indicator==j);
+    arma::uvec vec_rows_j = find(vec_group_indicator==j);
+    arma::mat Z_j=Z.rows(rows_j);
+    int n_j = Z_j.n_rows;
+    arma::mat I_nj(n_j,n_j);
+    I_nj.eye();
+
+    arma::vec vec_res_fixed_j=vec_res_fixed(vec_rows_j);
+    arma::mat common_component_j = kron(I_r,Z_j.t())*(kron(inv_Sigma,I_nj));
+    arma::mat first_piece= common_component_j * kron(I_r,Z_j) + inv_Psi;
+    arma::mat Gamma_j = first_piece.i();
+    arma::vec vec_Delta_j= Gamma_j * common_component_j * vec_res_fixed_j;
+    mat_mu_raneff.col((j-1))=vec_Delta_j;
+    vec_raneff_i(vec_rows_j)=kron(I_r,Z_j) * vec_Delta_j;
+    est_second_moment += Gamma_j + vec_Delta_j * vec_Delta_j.t();
+  }
+
+  return Rcpp::List::create( Named("est_second_moment") = est_second_moment,
+                             // Named("est_second_moment_error") = est_second_moment_error,
+                             Named("mat_mu_raneff") = mat_mu_raneff,
+                             Named("vec_raneff_i") = vec_raneff_i);
+}
+
+// [[Rcpp::depends(RcppArmadillo)]]
+//' @export
+// [[Rcpp::export]]
+double log_lik_mlmm_cpp(arma::vec vec_Y, arma::mat Z, arma::vec vec_XB,
+                       arma::vec group_indicator, arma::vec vec_group_indicator, arma::mat PSI,
+                       arma::mat SIGMA, arma::mat I_r, int J)
+{
+
+  // Containers
+  double log_lik_lmm = 0.0;
+
+  for ( int j = 1; j < (J+1); j++ ) {
+    arma::uvec rows_j = find(group_indicator==j);
+    arma::uvec vec_rows_j = find(vec_group_indicator==j);
+    arma::mat Z_j=Z.rows(rows_j);
+    arma::vec vec_XB_j=vec_XB(vec_rows_j);
+    arma::vec vec_y_j=vec_Y(vec_rows_j);
+    int n_j = Z_j.n_rows;
+    arma::mat I_nj(n_j,n_j);
+    I_nj.eye();
+    arma::mat G_j=kron(I_r,Z_j)*PSI*kron(I_r, Z_j.t()) + kron(SIGMA,I_nj);
+    log_lik_lmm+=dmvnrm_arma(vec_y_j.t(),vec_XB_j.t(),G_j,true);
+  }
+
+  return log_lik_lmm;
+}
