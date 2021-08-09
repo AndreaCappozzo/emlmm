@@ -169,6 +169,10 @@ ecm_lmm_lasso <-
       crit <- (err > tol & iter < itermax)
     }
 
+    # Add parameters names
+    names(beta) <- rownames(stats::coef(penalized_regression))
+
+    # Collect results
     return(
       list(
         beta = beta,
@@ -340,6 +344,11 @@ ecm_multcycle_lmm_lasso <-
       iter <- iter + 1
       crit <- (err > tol & iter < itermax)
     }
+
+    # Add parameters names
+    names(beta) <- rownames(stats::coef(penalized_regression))
+
+    # Collect results
 
     return(
       list(
