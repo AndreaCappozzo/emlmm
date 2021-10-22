@@ -2,7 +2,7 @@
 
 # LMM model with lasso penalty on the fixed effects ----------------------
 
-# Standard EM algorithm for LMM with lasso penalty (no multicycle)
+# Standard EM algorithm for LMM with elastic-net penalty (no multicycle)
 #' @export
 ecm_lmm_lasso <-
   function(X ,
@@ -10,6 +10,7 @@ ecm_lmm_lasso <-
            Z,
            group,
            lambda = NULL,
+           alpha=1, # alpha is for elastic net type of penalty: alpha=1 means lasso
            control_EM_algorithm = control_EM()) {
     X <-  data.matrix(X)
     X_no_intercept <-
@@ -28,7 +29,7 @@ ecm_lmm_lasso <-
           x = X_no_intercept,
           y = y,
           nfolds = 10,
-          alpha = 1,
+          alpha = alpha,
           family = "gaussian",
           standardize = FALSE
         )
@@ -52,7 +53,7 @@ ecm_lmm_lasso <-
           y = y ,
           family = "gaussian",
           # standardize = FALSE,
-          alpha = 1,
+          alpha = alpha,
           lambda = (lambda*sigma2)/N  # NOTE: the obj func in Rohart 2014 is multiplied by 2 wrt to the one I am using, and I think they should divide lambda by n as well
         )
       beta <-
@@ -116,7 +117,7 @@ ecm_lmm_lasso <-
           y = y - raneff_i,
           family = "gaussian",
           standardize = FALSE,
-          alpha = 1,
+          alpha = alpha,
           lambda = (lambda*sigma2)/N
         )
 
@@ -157,8 +158,12 @@ ecm_lmm_lasso <-
       #     )
       # }
 
+      penalty_value <- # [-1,] cos the intercept is not penalized
+        (1-alpha)*sum(beta[-1]^2)/2+ # ridge
+        alpha*sum(abs(beta[-1])) # lasso
+
       loglik_pen <-
-        loglik - lambda * sum(abs(beta[-1])) # objective function FIXME once penalty_factor glm is computed
+        loglik - lambda * penalty_value # objective function FIXME once penalty_factor glm is computed
 
       # check convergence
       err <-
@@ -173,20 +178,21 @@ ecm_lmm_lasso <-
     names(beta) <- rownames(stats::coef(penalized_regression))
 
     # Collect results
-    return(
-      list(
-        beta = beta,
-        Omega = Omega,
-        sigma2 = sigma2,
-        mu_raneff = e_step_lmm$mu_raneff,
-        loglik = loglik,
-        loglik_pen = loglik_pen,
-        loglik_pen_trace = loglik_pen_vec,
-        lambda = lambda,
-        lambda_range = lambda_range,
-        iter=iter
-      )
+    OUT <-       list(
+      beta = beta,
+      Omega = Omega,
+      sigma2 = sigma2,
+      mu_raneff = e_step_lmm$mu_raneff,
+      loglik = loglik,
+      loglik_pen = loglik_pen,
+      loglik_pen_trace = loglik_pen_vec,
+      lambda = lambda,
+      lambda_range = lambda_range,
+      iter = iter
     )
+
+    class(OUT) <- "lmm"
+    OUT
   }
 
 # multicycle ECM algorithm for LMM with lasso penalty as described in Rohart 2014 (http://dx.doi.org/10.1016/j.csda.2014.06.022)
