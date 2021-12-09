@@ -124,7 +124,8 @@ ecm_lmm_lasso <-
       beta <-
         as.vector(stats::coef(penalized_regression)) # I include the intercept in the set of estimated parameters
       Omega <- as.matrix(est_second_moment / J)
-      sigma2 <- c(stats::var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
+      # sigma2 <- c(stats::var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
+      sigma2 <- mean((y - X %*% beta - raneff_i)^2) + est_second_moment_error/N
 
       #### log lik evaluation-------------------------------------------------
 
@@ -324,7 +325,8 @@ ecm_multcycle_lmm_lasso <-
       # sigma2 <- mean(y*(y - c(X %*% beta) - raneff_i))
       # y_hat <- X %*% beta + raneff_i
 
-      sigma2 <- c(stats::var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
+      # sigma2 <- c(stats::var(y - X %*% beta - raneff_i)*(N-1)/N) + est_second_moment_error/N
+      sigma2 <- mean((y - X %*% beta - raneff_i)^2) + est_second_moment_error/N
 
       #### log lik evaluation-------------------------------------------------
 
