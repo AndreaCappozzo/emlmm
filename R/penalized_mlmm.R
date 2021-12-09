@@ -6,10 +6,12 @@ ecm_mlmm_penalized <-
            Z,
            group,
            lambda,
-           alpha=1, # alpha is for elastic net type of penalty for the group_lasso penalty_type only. alpha=1 means lasso
-           penalty_type = c("group_lasso", "netReg"),
+           alpha=1, # alpha is for elastic net type of penalty aka group-lasso and elastic-net penalty_type only. alpha=1 means lasso
+           penalty_type = c("group-lasso", "elastic-net","net-reg"),
            control_EM_algorithm = control_EM()) {
 
+    # Depending on the chosen penalty, I define the corresponding function to be used in the update in the M-step
+    update_BETA <- update_BETA_f(penalty_type = penalty_type)
 
     X <-  data.matrix(X)
     X_no_intercept <-
@@ -28,28 +30,27 @@ ecm_mlmm_penalized <-
     SIGMA <- diag(r)
     PSI <- diag(q*r)
 
+    # Objects to which I apply the vec operator and other useful quantities
+    vec_Y <- c(Y) # Nr x 1
+    I_r <- diag(r)
+
     if (lambda == 0) {
     BETA <- (stats::lm.fit(y = Y, x = X))$coefficients
 
     } else{
-    #FIXME define a function that returns BETA for which the way BETA is computed depends on penalty_type
-      penalized_regression_0 <-
-        glmnet::glmnet(
-          x = X_no_intercept,
-          y = Y , # I do not premultiply by SIGMA as in the init SIGMA is a diagonal matrix
-          family = "mgaussian",
+      BETA <-
+        update_BETA(
+          X = X_no_intercept,
+          Y = Y, # I do not premultiply by SIGMA as in the init SIGMA is a diagonal matrix
           alpha = alpha,
-          lambda = lambda/N
+          lambda = lambda / N,
+          I_r = I_r
         )
-      BETA <-as.matrix(Reduce(f = cbind,stats::coef(penalized_regression_0)))
     }
 
 
-
-    # Objects to which I apply the vec operator and other useful quantities
     vec_XB <- c(X %*% BETA) # Nr x 1
-    vec_Y <- c(Y) # Nr x 1
-    I_r <- diag(r)
+
 
     # EM parameters
     itermax <- control_EM_algorithm$itermax
@@ -96,22 +97,16 @@ ecm_mlmm_penalized <-
 
       # M step ------------------------------------------------------------------
 
-      # FIXME wrap BETA calculation into a function that depends on the penalty
-
       Sigma_inv_half_Y_tilde <- t(tcrossprod(x = SIGMA_inv_half, y = Y - raneff_i))
 
-      penalized_regression <-
-        glmnet::glmnet(
-          x = X_no_intercept,
-          y = Sigma_inv_half_Y_tilde,
-          family = "mgaussian",
-          standardize = FALSE,
-          alpha = alpha,
-          lambda = (lambda)/N
-        )
-
       BETA <-
-        as.matrix(Reduce(f = cbind,stats::coef(penalized_regression))%*%SIGMA_half)
+        update_BETA(
+          X = X_no_intercept,
+          Y = Sigma_inv_half_Y_tilde,
+          alpha = alpha,
+          lambda = lambda / N,
+          I_r = I_r
+        )%*%SIGMA_half # I postmultiply by SIGMA_half as per derivation in the paper
 
       PSI <- as.matrix(est_second_moment / J)
 
@@ -133,12 +128,15 @@ ecm_mlmm_penalized <-
       )
 
       penalty_value <-
-        (1-alpha)*norm(BETA[-1, , drop = FALSE],type = "F")^2/2+ # [-1,] cos the intercepts are not penalized
-        alpha*sum(apply(BETA[-1, , drop = FALSE], 1, function(b)
-          sqrt(sum(b ^ 2))))#FIXME wrap it in a function that changes according to the penalty type
+        penalty_value_f(
+          penalty_type = penalty_type,
+          BETA = BETA,
+          alpha = alpha,
+          lambda = lambda
+        )
 
       loglik_pen <-
-        loglik - lambda * penalty_value
+        loglik - penalty_value
 
       # check convergence
       err <-
