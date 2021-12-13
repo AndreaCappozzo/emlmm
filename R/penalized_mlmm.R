@@ -6,6 +6,10 @@ ecm_mlmm_penalized <-
            Z,
            group,
            lambda,
+           lambda_X=0, # lambda_X, lambda_Y, G_X and G_Y are required only when penalty_type== "net-reg"
+           lambda_Y=0,
+           G_X=NULL,
+           G_Y=NULL,
            alpha=1, # alpha is for elastic net type of penalty aka group-lasso and elastic-net penalty_type only. alpha=1 means lasso
            penalty_type = c("group-lasso", "elastic-net","net-reg"),
            control_EM_algorithm = control_EM()) {
@@ -56,6 +60,7 @@ ecm_mlmm_penalized <-
     itermax <- control_EM_algorithm$itermax
     tol <- control_EM_algorithm$tol
     err <- control_EM_algorithm$err
+    BETA_zero_tol <- control_EM_algorithm$BETA_zero_tol
 
     iter <- 0
     loglik_pen <- loglik_pen_prev <- -.Machine$integer.max / 2
@@ -89,17 +94,60 @@ ecm_mlmm_penalized <-
         r = r,
         J = J
       )
-
+      #
       vec_raneff_i <- e_step_lmm$vec_raneff_i
       est_second_moment <- e_step_lmm$est_second_moment
+      est_second_moment_error <- e_step_lmm$est_second_moment_error
 
       raneff_i <- matrix(vec_raneff_i, nrow = N, ncol = r)
+
+      # # Original R code # FIXME implement everything in cpp
+      # est_second_moment_error <- matrix(0,nrow = r, ncol = r)
+      # est_second_moment <- matrix(0,nrow = q*r, ncol = q*r)
+      # mu_raneff <- array(dim=c(q,r,J))
+      # vec_raneff_i <- vector(mode = "numeric", length = length(vec_Y))
+      #
+      #
+      # for (j in 1:J) {
+      #   # iterate over different groups
+      #   rows_j <- which(group_indicator == j)
+      #   vec_rows_j <- which(vec_group_indicator == j)
+      #   n_j <- length(rows_j)
+      #   I_nj <- diag(n_j)
+      #
+      #   Z_j <- Z[rows_j, , drop = FALSE]
+      #
+      #   vec_res_fixed_j <- vec_res_fixed[vec_rows_j, , drop = FALSE]
+      #
+      #   common_component_j <-
+      #     (I_r %x% t(Z_j)) %*% (SIGMA_inv %x% I_nj)
+      #   Gamma_j <-
+      #     solve(common_component_j %*% (I_r %x% Z_j) + PSI_inv)
+      #   vec_DELTA_j <-
+      #     Gamma_j %*% common_component_j %*% vec_res_fixed_j
+      #   mu_raneff[, , j] <- matrix(vec_DELTA_j, nrow = q, ncol = r)
+      #   vec_raneff_i[vec_rows_j] <- (I_r %x% Z_j) %*% vec_DELTA_j
+      #   est_second_moment <-
+      #     est_second_moment + Gamma_j + vec_DELTA_j %*% t(vec_DELTA_j)
+      #
+      #   var_ei <- (I_r%x%Z_j) %*% Gamma_j %*% (I_r%x%t(Z_j))
+      #   slice_rows <- slice_cols <- split(1:(n_j*r), ceiling(seq_along(1:(n_j*r))/n_j))
+      #
+      #   for (row in 1:r) {
+      #     for (col in 1:r) {
+      #       est_second_moment_error[row, col] <-
+      #         est_second_moment_error[row, col] + sum(diag(var_ei[slice_rows[[row]], slice_cols[[col]]]))
+      #     }
+      #   }
+      # }
+      #
+      # raneff_i <- matrix(vec_raneff_i, nrow = N, ncol = r)
 
       # M step ------------------------------------------------------------------
 
       Sigma_inv_half_Y_tilde <- t(tcrossprod(x = SIGMA_inv_half, y = Y - raneff_i))
 
-      BETA <-
+      BETA_tmp <-
         update_BETA(
           X = X_no_intercept,
           Y = Sigma_inv_half_Y_tilde,
@@ -108,9 +156,16 @@ ecm_mlmm_penalized <-
           I_r = I_r
         )%*%SIGMA_half # I postmultiply by SIGMA_half as per derivation in the paper
 
+      BETA <-
+        ifelse(abs(BETA_tmp) >= BETA_zero_tol |
+              lambda == 0 | penalty_type == "group-lasso",
+               BETA_tmp,
+               0)
+
       PSI <- as.matrix(est_second_moment / J)
 
-      SIGMA <- stats::cov(Y - X %*% BETA - raneff_i)*(N-1)/N
+      # SIGMA <- stats::cov(Y - X %*% BETA - raneff_i)*(N-1)/N
+      SIGMA <- (t(Y - X %*% BETA - raneff_i)%*%(Y - X %*% BETA - raneff_i)+est_second_moment_error)/N
       vec_XB <- c(X %*% BETA) # Nr x 1
 
       #### log lik evaluation-------------------------------------------------
@@ -132,7 +187,11 @@ ecm_mlmm_penalized <-
           penalty_type = penalty_type,
           BETA = BETA,
           alpha = alpha,
-          lambda = lambda
+          lambda = lambda,
+          lambda_X = lambda_X,
+          lambda_Y = lambda_Y,
+          G_X = G_X,
+          G_Y = G_Y
         )
 
       loglik_pen <-

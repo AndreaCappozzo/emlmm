@@ -1,10 +1,14 @@
 #' @export
 control_EM <- function(itermax = 1000,
                        tol = 1e-08,
-                       err = .Machine$double.xmax / 2) {
-  list(itermax = itermax,
-       tol = tol,
-       err = err)
+                       err = .Machine$double.xmax / 2,
+                         BETA_zero_tol=1e-7) {
+  list(
+    itermax = itermax,
+    tol = tol,
+    err = err,
+    BETA_zero_tol = BETA_zero_tol
+  )
 }
 
 # Function that checks which columns of X are also in the random effect Z, returning a penalty factor that identifies which column of
@@ -46,8 +50,10 @@ penalty_value_f <-
            BETA,
            alpha,
            lambda,
-           lambda_1=0, # lambda_1 and lambda_2 are used in net-reg only
-           lambda_2=0) {
+           lambda_X = 0, # lambda_1 and lambda_2 are used in net-reg only
+           lambda_Y = 0,
+           G_X = NULL,
+           G_Y = NULL) {
     switch(
       penalty_type,
       "elastic-net" = lambda*((1 - alpha) * norm(BETA[-1, , drop = FALSE], type = "F") ^ 2 / 2 + # convex comb of L2 and L1 norm
@@ -56,7 +62,9 @@ penalty_value_f <-
                                   2 / 2 + # [-1,] cos the intercepts are not penalized
                                   alpha * sum(apply(BETA[-1, , drop = FALSE], 1, function(b)
                                     sqrt(sum(b ^ 2))))),
-      "net-reg" = "FIXME"
+      "net-reg" = lambda*(sum(abs(BETA[-1,]))) +
+        ifelse(lambda_X==0,0,lambda_X*sum(diag((t(BETA[-1,])%*%(diag(colSums(G_X))-G_X)%*%BETA[-1,]))))+
+        ifelse(lambda_Y==0,0,lambda_Y*sum(diag((t(BETA[-1,])%*%(diag(colSums(G_Y))-G_Y)%*%BETA[-1,]))))
     )
   }
 
@@ -69,6 +77,7 @@ update_BETA_group_lasso <- function(X,Y,alpha,lambda,...){
       x = X,
       y = Y ,
       family = "mgaussian",
+      # thresh = 1e-10,
       standardize = FALSE,
       alpha = alpha,
       lambda = lambda
@@ -76,17 +85,30 @@ update_BETA_group_lasso <- function(X,Y,alpha,lambda,...){
   as.matrix(Reduce(f = cbind,stats::coef(penalized_regression)))
 }
 
-update_BETA_netreg <- function(X,Y,alpha,lambda, lambda_1,lambda_2,...){
+update_BETA_netreg <-
+  function(X,
+           Y,
+           lambda,
+           lambda_X=0,
+           lambda_Y=0,
+           G_X=NULL,
+           G_Y=NULL,
+           ...) {
+
   penalized_regression <-
-    glmnet::glmnet(
-      x = X,
-      y = Y ,
-      family = "mgaussian",
-      standardize = FALSE,
-      alpha = alpha,
-      lambda = lambda
+    netReg::edgenet(
+      X = X,
+      Y = Y,
+      G.X=G_X,
+      G.Y=G_Y,
+      family = "gaussian",
+      lambda = lambda,
+      psigx = lambda_X,
+      psigy = lambda_Y
     )
-  as.matrix(Reduce(f = cbind,stats::coef(penalized_regression)))
+
+  rbind(penalized_regression$alpha,
+        penalized_regression$beta)
 }
 
 update_BETA_elastic_net <- function(X,Y,alpha,lambda, I_r,...){
@@ -101,7 +123,7 @@ update_BETA_elastic_net <- function(X,Y,alpha,lambda, I_r,...){
       family = "gaussian",
       standardize = FALSE,
       alpha = alpha,
-      # thresh = .Machine$double.eps,
+      thresh = 1e-12,
       intercept = FALSE, # I do not need a single intercept as I need to estimate r intercepts
       lambda = lambda
     )

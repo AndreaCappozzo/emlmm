@@ -112,7 +112,7 @@ Rcpp::List estep_mlmm_cpp(arma::vec vec_res_fixed, arma::mat Z,
 
   // Containers
   arma::mat est_second_moment(q*r,q*r);
-  // double est_second_moment_error = 0.0;
+  arma::mat est_second_moment_error(r,r);
   arma::vec vec_raneff_i(N*r);
   arma::mat mat_mu_raneff(q*r,J);
 
@@ -136,10 +136,22 @@ Rcpp::List estep_mlmm_cpp(arma::vec vec_res_fixed, arma::mat Z,
     mat_mu_raneff.col((j-1))=vec_Delta_j;
     vec_raneff_i(vec_rows_j)=kron(I_r,Z_j) * vec_Delta_j;
     est_second_moment += Gamma_j + vec_Delta_j * vec_Delta_j.t();
+    arma::mat var_ei = kron(I_r,Z_j) * Gamma_j * kron(I_r,Z_j.t());
+    // arma::uvec slice_rows=arma::regspace(0, 1, n_j);
+    arma::uvec slice_rows = regspace<arma::uvec>(0, 1, (n_j-1));
+
+    for(int row=0; row<r; row++ ){
+    arma::uvec slice_cols = regspace<arma::uvec>(0, 1, (n_j-1));
+      for(int col=0; col<r; col++ ){
+        est_second_moment_error(row,col)+=trace(var_ei.submat(slice_rows,slice_cols));
+        slice_cols+=(n_j);
+      }
+      slice_rows+= (n_j);
+    }
   }
 
   return Rcpp::List::create( Named("est_second_moment") = est_second_moment,
-                             // Named("est_second_moment_error") = est_second_moment_error,
+                             Named("est_second_moment_error") = est_second_moment_error,
                              Named("mat_mu_raneff") = mat_mu_raneff,
                              Named("vec_raneff_i") = vec_raneff_i);
 }

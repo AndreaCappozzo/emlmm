@@ -262,9 +262,10 @@ ecm_mlmm <-
 
       vec_raneff_i <- e_step_lmm$vec_raneff_i
       est_second_moment <- e_step_lmm$est_second_moment
+      est_second_moment_error <- e_step_lmm$est_second_moment_error
 
-      # # Original R code
-      # # est_second_moment_error <- matrix(0,nrow = r, ncol = r)
+      # # # Original R code
+      # est_second_moment_error <- matrix(0,nrow = r, ncol = r)
       # est_second_moment <- matrix(0,nrow = q*r, ncol = q*r)
       # mu_raneff <- array(dim=c(q,r,J))
       # vec_raneff_i <- vector(mode = "numeric", length = length(vec_Y))
@@ -274,7 +275,8 @@ ecm_mlmm <-
       #   # iterate over different groups
       #   rows_j <- which(group_indicator == j)
       #   vec_rows_j <- which(vec_group_indicator == j)
-      #   I_nj <- diag(length(rows_j))
+      #   n_j <- length(rows_j)
+      #   I_nj <- diag(n_j)
       #
       #   Z_j <- Z[rows_j, , drop = FALSE]
       #
@@ -289,19 +291,19 @@ ecm_mlmm <-
       #   mu_raneff[, , j] <- matrix(vec_DELTA_j, nrow = q, ncol = r)
       #   vec_raneff_i[vec_rows_j] <- (I_r %x% Z_j) %*% vec_DELTA_j
       #   est_second_moment <-
-      #     est_second_moment + Gamma_j + vec_DELTA_j %*% t(vec_DELTA_j) # FIXME check this part
-      #   # VAR_vec_E_j <- (I_r%x%Z_j)%*%Gamma_j%*%(I_r%x%t(Z_j))
+      #     est_second_moment + Gamma_j + vec_DELTA_j %*% t(vec_DELTA_j)
       #
-      #   # for (s in 1:r) {
-      #   #   est_second_moment_error[s,s] <-
-      #   # }
-      #   # for (s in 1:r) {
-      #   #   for (t in 1:r) {
-      #   #     est_second_moment_error[s, t] <-
-      #   #       est_second_moment_error[s, t] + #sum(diag(Z_j %*% Gamma_j %*% t(Z_j))) # FIXME
-      #   #   }
+      #   var_ei <- (I_r%x%Z_j) %*% Gamma_j %*% (I_r%x%t(Z_j))
+      #   slice_rows <- slice_cols <- split(1:(n_j*r), ceiling(seq_along(1:(n_j*r))/n_j))
+      #
+      #   for (row in 1:r) {
+      #     for (col in 1:r) {
+      #       est_second_moment_error[row, col] <-
+      #         est_second_moment_error[row, col] + sum(diag(var_ei[slice_rows[[row]], slice_cols[[col]]]))
+      #     }
       #   }
-
+      # }
+      #
       raneff_i <- matrix(vec_raneff_i, nrow = N, ncol = r)
 
       # M step ------------------------------------------------------------------
@@ -311,7 +313,7 @@ ecm_mlmm <-
 
       PSI <- as.matrix(est_second_moment / J)
 
-      SIGMA <- stats::cov(Y - X %*% BETA - raneff_i)*(N-1)/N # FIXME potentially a piece is missing here
+      SIGMA <- (t(Y - X %*% BETA - raneff_i)%*%(Y - X %*% BETA - raneff_i)+est_second_moment_error)/N
       vec_XB <- c(X %*% BETA) # Nr x 1
 
       #### log lik evaluation-------------------------------------------------
