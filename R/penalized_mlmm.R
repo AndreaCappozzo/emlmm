@@ -37,6 +37,7 @@ ecm_mlmm_penalized <-
     # Objects to which I apply the vec operator and other useful quantities
     vec_Y <- c(Y) # Nr x 1
     I_r <- diag(r)
+    CD_threshold <- control_EM_algorithm$CD_threshold
 
     if (lambda == 0) {
     BETA <- (stats::lm.fit(y = Y, x = X))$coefficients
@@ -48,6 +49,7 @@ ecm_mlmm_penalized <-
           Y = Y, # I do not premultiply by SIGMA as in the init SIGMA is a diagonal matrix
           alpha = alpha,
           lambda = lambda / N,
+          CD_threshold=CD_threshold,
           I_r = I_r
         )
     }
@@ -61,6 +63,7 @@ ecm_mlmm_penalized <-
     tol <- control_EM_algorithm$tol
     err <- control_EM_algorithm$err
     BETA_zero_tol <- control_EM_algorithm$BETA_zero_tol
+
 
     iter <- 0
     loglik_pen <- loglik_pen_prev <- -.Machine$integer.max / 2
@@ -153,19 +156,45 @@ ecm_mlmm_penalized <-
           Y = Sigma_inv_half_Y_tilde,
           alpha = alpha,
           lambda = lambda / N,
-          I_r = I_r
-        )%*%SIGMA_half # I postmultiply by SIGMA_half as per derivation in the paper
+          I_r = I_r,
+          CD_threshold=CD_threshold
+        )
 
       BETA <-
-        ifelse(abs(BETA_tmp) >= BETA_zero_tol |
-              lambda == 0 | penalty_type == "group-lasso",
-               BETA_tmp,
+        (tcrossprod(BETA_tmp, SIGMA_half))
+
+      BETA <- # should I have values of BETA very close to 0, I can set them to be exactly 0 if they are smaller than BETA_zero_tol
+        ifelse(abs(BETA) >= BETA_zero_tol |
+                 lambda == 0 | penalty_type == "group-lasso",
+               BETA,
                0)
+
+      # BETA_fixed <-
+      #   update_BETA(
+      #     X = X_no_intercept,
+      #     Y = (Y - raneff_i),
+      #     alpha = alpha,
+      #     lambda = lambda / N,
+      #     I_r = I_r,
+      #     CD_threshold=CD_threshold
+      #   )
+      #
+      # BETA <- tcrossprod(BETA_tmp, SIGMA_half)*(abs(BETA_fixed)>0)
+
+      # BETA <- # Correct but numerically unstable for elastic-net and net-reg
+      #   tcrossprod(update_BETA(
+      #     X = X_no_intercept,
+      #     Y = Sigma_inv_half_Y_tilde,
+      #     alpha = alpha,
+      #     lambda = lambda / N,
+      #     I_r = I_r,
+      #     CD_threshold=CD_threshold
+      #   ), SIGMA_half) # I postmultiply by SIGMA_half as per derivation in the paper
 
       PSI <- as.matrix(est_second_moment / J)
 
       # SIGMA <- stats::cov(Y - X %*% BETA - raneff_i)*(N-1)/N
-      SIGMA <- (t(Y - X %*% BETA - raneff_i)%*%(Y - X %*% BETA - raneff_i)+est_second_moment_error)/N
+      SIGMA <- (crossprod(Y - X %*% BETA - raneff_i) +est_second_moment_error)/N
       vec_XB <- c(X %*% BETA) # Nr x 1
 
       #### log lik evaluation-------------------------------------------------
@@ -205,6 +234,12 @@ ecm_mlmm_penalized <-
       iter <- iter + 1
       crit <- (err > tol & iter < itermax)
     }
+
+    # BETA <- # should I have values of BETA very close to 0, I can set them to be exactly 0 if they are smaller than BETA_zero_tol
+    #   ifelse(abs(BETA) >= BETA_zero_tol |
+    #            lambda == 0 | penalty_type == "group-lasso",
+    #          BETA,
+    #          0)
 
     mu_raneff <- array(c(e_step_lmm$mat_mu_raneff),dim=c(q,r,J)) # FIXME check when q>1
 

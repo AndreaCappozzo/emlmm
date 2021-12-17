@@ -2,12 +2,13 @@
 control_EM <- function(itermax = 1000,
                        tol = 1e-08,
                        err = .Machine$double.xmax / 2,
-                         BETA_zero_tol=1e-7) {
+                         BETA_zero_tol=1e-7, CD_threshold=1e-8) {
   list(
     itermax = itermax,
     tol = tol,
     err = err,
-    BETA_zero_tol = BETA_zero_tol
+    BETA_zero_tol = BETA_zero_tol,
+    CD_threshold = CD_threshold # Convergence threshold for coordinate descent
   )
 }
 
@@ -41,7 +42,8 @@ update_BETA_f <- function(penalty_type) {
     penalty_type,
     "elastic-net" = update_BETA_elastic_net,
     "group-lasso" = update_BETA_group_lasso,
-    "net-reg" = update_BETA_netreg
+    "net-reg" = update_BETA_netreg,
+    "sparse-grouplasso"=update_BETA_sparse_group_lasso
   )
 }
 
@@ -62,6 +64,9 @@ penalty_value_f <-
                                   2 / 2 + # [-1,] cos the intercepts are not penalized
                                   alpha * sum(apply(BETA[-1, , drop = FALSE], 1, function(b)
                                     sqrt(sum(b ^ 2))))),
+      "sparse-grouplasso" = lambda * (alpha * (sum(abs(BETA[-1,]))) + # [-1,] cos the intercepts are not penalized
+                                    (1 - alpha) * sum(apply(BETA[-1, , drop = FALSE], 1, function(b)
+                                    sqrt(sum(b ^ 2))))),
       "net-reg" = lambda*(sum(abs(BETA[-1,]))) +
         ifelse(lambda_X==0,0,lambda_X*sum(diag((t(BETA[-1,])%*%(diag(colSums(G_X))-G_X)%*%BETA[-1,]))))+
         ifelse(lambda_Y==0,0,lambda_Y*sum(diag((t(BETA[-1,])%*%(diag(colSums(G_Y))-G_Y)%*%BETA[-1,]))))
@@ -71,19 +76,36 @@ penalty_value_f <-
 
 # Different updates for BETA ----------------------------------------------
 
-update_BETA_group_lasso <- function(X,Y,alpha,lambda,...){
+update_BETA_group_lasso <- function(X,Y,alpha,lambda,CD_threshold,...){
   penalized_regression <-
     glmnet::glmnet(
       x = X,
       y = Y ,
       family = "mgaussian",
-      # thresh = 1e-10,
+      thresh = CD_threshold,
       standardize = FALSE,
       alpha = alpha,
       lambda = lambda
     )
   as.matrix(Reduce(f = cbind,stats::coef(penalized_regression)))
 }
+
+update_BETA_sparse_group_lasso <-
+  function(X, Y, alpha, lambda, CD_threshold, ...) {
+    penalized_regression <-
+      lsgl::fit(
+        x = X,
+        y = Y,
+        intercept = TRUE,
+        alpha = alpha,
+        lambda = lambda,
+        d = 1,
+        algorithm.config = lsgl::lsgl.algorithm.config(tolerance_penalized_main_equation_loop = CD_threshold,
+                                                       verbose = FALSE)
+      )
+
+    as.matrix(penalized_regression$beta[[1]])
+  }
 
 update_BETA_netreg <-
   function(X,
@@ -93,6 +115,7 @@ update_BETA_netreg <-
            lambda_Y=0,
            G_X=NULL,
            G_Y=NULL,
+           CD_threshold,
            ...) {
 
   penalized_regression <-
@@ -104,18 +127,21 @@ update_BETA_netreg <-
       family = "gaussian",
       lambda = lambda,
       psigx = lambda_X,
-      psigy = lambda_Y
+      psigy = lambda_Y,
+      thresh = CD_threshold
     )
 
   rbind(penalized_regression$alpha,
         penalized_regression$beta)
 }
 
-update_BETA_elastic_net <- function(X,Y,alpha,lambda, I_r,...){
+update_BETA_elastic_net <- function(X,Y,alpha,lambda, I_r,CD_threshold,...){
   p_no_intercept <- ncol(X)
   r <- ncol(Y)
   vec_Y <- c(Y)
   vec_X <- I_r%x%cbind(1,X)
+  lasso_weigths <- rep(1,ncol(vec_X))
+  lasso_weigths[seq(1,ncol(vec_X),by=(p_no_intercept+1))] <- 0 # in this way I do not penalize the r intercepts
   penalized_regression <-
     glmnet::glmnet(
       x = vec_X,
@@ -123,7 +149,8 @@ update_BETA_elastic_net <- function(X,Y,alpha,lambda, I_r,...){
       family = "gaussian",
       standardize = FALSE,
       alpha = alpha,
-      thresh = 1e-12,
+      thresh = CD_threshold,
+      penalty.factor = lasso_weigths,
       intercept = FALSE, # I do not need a single intercept as I need to estimate r intercepts
       lambda = lambda
     )
