@@ -7,7 +7,10 @@
 <!-- badges: end -->
 
 R package for fitting penalised linear mixed-effect models via EM-type
-algorithms.
+algorithms. This repository is associated with the paper Cappozzo, Ieva,
+Fiorito (2021+) A general framework for penalized mixed-effects
+multitask learning with application on DNAm biomarkers creation
+<https://arxiv.org/abs/2112.12719>
 
 ## Installation
 
