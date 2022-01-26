@@ -69,7 +69,7 @@ penalty_value_f <-
                                     sqrt(sum(b ^ 2))))),
       "net-reg" = lambda*(sum(abs(BETA[-1,]))) +
         ifelse(lambda_X==0,0,lambda_X*sum(diag((t(BETA[-1,])%*%(diag(colSums(G_X))-G_X)%*%BETA[-1,]))))+
-        ifelse(lambda_Y==0,0,lambda_Y*sum(diag((t(BETA[-1,])%*%(diag(colSums(G_Y))-G_Y)%*%BETA[-1,]))))
+        ifelse(lambda_Y==0,0,lambda_Y*sum(diag((BETA[-1,]%*%(diag(colSums(G_Y))-G_Y)%*%t(BETA[-1,])))))
     )
   }
 
@@ -131,8 +131,11 @@ update_BETA_netreg <-
       thresh = CD_threshold
     )
 
-  rbind(penalized_regression$alpha,
-        penalized_regression$beta)
+  rbind(t(penalized_regression$intercept),
+        penalized_regression$coefficients)
+  # For netreg version with tf
+  # rbind(penalized_regression$alpha,
+  #       penalized_regression$beta)
 }
 
 update_BETA_elastic_net <- function(X,Y,alpha,lambda, I_r,CD_threshold,...){

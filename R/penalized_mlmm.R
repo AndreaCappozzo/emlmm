@@ -46,11 +46,16 @@ ecm_mlmm_penalized <-
       BETA <-
         update_BETA(
           X = X_no_intercept,
-          Y = Y, # I do not premultiply by SIGMA as in the init SIGMA is a diagonal matrix
+          Y = Y,
+          # I do not premultiply by SIGMA as in the init SIGMA is a diagonal matrix
           alpha = alpha,
           lambda = lambda / N,
-          CD_threshold=CD_threshold,
-          I_r = I_r
+          CD_threshold = CD_threshold,
+          I_r = I_r,
+          lambda_X = lambda_X,
+          lambda_Y = lambda_Y,
+          G_X = G_X,
+          G_Y = G_Y
         )
     }
 
