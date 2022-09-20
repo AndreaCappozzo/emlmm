@@ -13,7 +13,7 @@ ecm_mlmm_penalized <-
            alpha=1, # alpha is for elastic net type of penalty aka group-lasso and elastic-net penalty_type only. alpha=1 means lasso
            penalty_type = c("group-lasso", "elastic-net","net-reg"),
            control_EM_algorithm = control_EM()) {
-
+    start_time <- Sys.time()
     # Depending on the chosen penalty, I define the corresponding function to be used in the update in the M-step
     update_BETA <- update_BETA_f(penalty_type = penalty_type)
 
@@ -247,7 +247,8 @@ ecm_mlmm_penalized <-
     #          0)
 
     mu_raneff <- array(c(e_step_lmm$mat_mu_raneff),dim=c(q,r,J)) # FIXME check when q>1
-
+    end_time <- Sys.time()
+    elapsed_time <- difftime(end_time,start_time,units = "secs")
     OUT <-       list(
       BETA = BETA,
       PSI = PSI,
@@ -258,7 +259,8 @@ ecm_mlmm_penalized <-
       loglik_pen_trace = loglik_pen_vec,
       lambda = lambda,
       penalty_value = penalty_value,
-      iter = iter
+      iter = iter,
+      elapsed_time=elapsed_time
     )
 
     class(OUT) <- "mlmm"
