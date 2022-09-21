@@ -162,6 +162,10 @@ ecm_mlmm_penalized <-
           alpha = alpha,
           lambda = lambda / N,
           I_r = I_r,
+          lambda_X = lambda_X,
+          lambda_Y = lambda_Y,
+          G_X = G_X,
+          G_Y = G_Y,
           CD_threshold=CD_threshold
         )
 

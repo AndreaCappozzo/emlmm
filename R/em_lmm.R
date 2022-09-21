@@ -81,7 +81,7 @@ ecm_lmm <-
       crit <- (err > tol & iter < itermax)
     }
 
-    return(
+    OUT <-
       list(
         beta = beta,
         Omega = Omega,
@@ -90,7 +90,8 @@ ecm_lmm <-
         loglik = loglik,
         loglik_trace = loglik_vec
       )
-    )
+    class(OUT) <- "lmm"
+    OUT
   }
 
 # ecm_lmm_nocpp <-
