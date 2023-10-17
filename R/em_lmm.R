@@ -87,6 +87,7 @@ ecm_lmm <-
         Omega = Omega,
         sigma2 = sigma2,
         mu_raneff = e_step_lmm$mu_raneff,
+        var_raneff = e_step_lmm$var_raneff,
         loglik = loglik,
         loglik_trace = loglik_vec
       )
