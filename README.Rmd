@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 <!-- badges: end -->
 
 R package for fitting penalised linear mixed-effect models via EM-type algorithms. 
-This repository is associated with the paper Cappozzo, Ieva, Fiorito (2023) A general framework for penalized mixed-effects multitask learning with applications on DNA methylation surrogate biomarkers creation [https://arxiv.org/abs/2112.12719](https://arxiv.org/abs/2112.12719)
+This repository is associated with the paper Cappozzo, Ieva, Fiorito (2023) A general framework for penalized mixed-effects multitask learning with applications on DNA methylation surrogate biomarkers creation [https://projecteuclid.org/journals/annals-of-applied-statistics/volume-17/issue-4/A-general-framework-for-penalized-mixed-effects-multitask-learning-with/10.1214/23-AOAS1760.short](https://projecteuclid.org/journals/annals-of-applied-statistics/volume-17/issue-4/A-general-framework-for-penalized-mixed-effects-multitask-learning-with/10.1214/23-AOAS1760.short)
 
 ## Installation
 
